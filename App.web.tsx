@@ -1,11 +1,15 @@
 import Constants from "expo-constants";
 import { View, StyleSheet, Text } from "react-native";
-import { ScratchCard } from "./components";
+
+import { WithSkiaWeb } from "@shopify/react-native-skia/lib/module/web";
 
 export default function App() {
   return (
     <View style={styles.container}>
-      <ScratchCard />
+      <WithSkiaWeb
+        getComponent={() => import("./components/ScratchCard.tsx")}
+        fallback={<Text style={{ textAlign: "center" }}>Loading Skia...</Text>}
+      />
     </View>
   );
 }

@@ -13,10 +13,11 @@ import React, { useCallback, useRef, useState } from "react";
 import { svgPathProperties } from "svg-path-properties";
 import Scratcher from "./Scratcher";
 import ScratcherImage from "./ScratcherImage";
+import { Platform } from "react-native";
 
 interface ScratchCardProps {
   brushSize?: number;
-  image: string;
+  image?: string;
   height?: number;
   width?: number;
   percentage?: number;
@@ -24,7 +25,7 @@ interface ScratchCardProps {
 
 export const ScratchCard = ({
   brushSize = 20,
-  image,
+  image = "https://pbs.twimg.com/media/FZ249SNUYAAxes7.jpg",
   height = 300,
   width = 300,
   percentage = 60,
@@ -33,45 +34,57 @@ export const ScratchCard = ({
   const pathRef = useRef<SkPath>(Skia.Path.Make()).current;
   const [autoReveal, setAutoReveal] = useState(false);
 
+  const drawingActiveRef = useRef(false);
+
   const onDrawingStart = useCallback((touchInfo: TouchInfo) => {
+    drawingActiveRef.current = true;
+
     setPaths((old) => {
       const { x, y } = touchInfo;
       const newPath = Skia.Path.Make();
       newPath.moveTo(x, y);
+      pathRef.moveTo(x, y);
       return [...old, newPath];
     });
   }, []);
 
   const onDrawingActive = useCallback((touchInfo: TouchInfo) => {
-    const pathSvgString = pathRef?.toSVGString();
-    const pathProperties = new svgPathProperties(pathSvgString);
+    if (drawingActiveRef.current) {
+      const pathSvgString = pathRef?.toSVGString();
+      const pathProperties = new svgPathProperties(pathSvgString);
+      const totalArea = pathProperties.getTotalLength() * brushSize;
+      const currentPercentage = (totalArea / (height * width)) * 100;
+      if (currentPercentage > percentage) {
+        setAutoReveal(true);
+        setPaths([]);
+      } else {
+        setPaths((currentPaths) => {
+          const { x, y } = touchInfo;
+          let currentPath = currentPaths[currentPaths.length - 1];
 
-    const totalArea = pathProperties.getTotalLength() * brushSize;
-
-    const currentPercentage = (totalArea / (height * width)) * 100;
-
-    if (currentPercentage > percentage) {
-      setAutoReveal(true);
-      setPaths([]);
-    } else {
-      setPaths((currentPaths) => {
-        const { x, y } = touchInfo;
-        const currentPath = currentPaths[currentPaths.length - 1];
-        const lastPoint = currentPath.getLastPt();
-        const xMid = (lastPoint.x + x) / 2;
-        const yMid = (lastPoint.y + y) / 2;
-
-        currentPath.quadTo(lastPoint.x, lastPoint.y, xMid, yMid);
-        pathRef.quadTo(lastPoint.x, lastPoint.y, xMid, yMid);
-        return [...currentPaths.slice(0, currentPaths.length - 1), currentPath];
-      });
+          const lastPoint = pathRef.getLastPt();
+          const xMid = (lastPoint.x + x) / 2;
+          const yMid = (lastPoint.y + y) / 2;
+          pathRef.quadTo(lastPoint.x, lastPoint.y, xMid, yMid);
+          currentPath = pathRef;
+          return [
+            ...currentPaths.slice(0, currentPaths.length - 1),
+            currentPath,
+          ];
+        });
+      }
     }
+  }, []);
+
+  const onDrawingEnd = useCallback(() => {
+    drawingActiveRef.current = false;
   }, []);
 
   const touchHandler = useTouchHandler(
     {
       onActive: onDrawingActive,
       onStart: onDrawingStart,
+      onEnd: onDrawingEnd,
     },
     [onDrawingActive, onDrawingStart]
   );
